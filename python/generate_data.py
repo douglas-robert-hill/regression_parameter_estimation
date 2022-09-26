@@ -15,7 +15,7 @@ def generate_linear_data(n_obs: int, n_covariates: int, test_proportion: float =
     """
     generator = np.random.mtrand._rand
     X = generator.standard_normal(size = (n_obs, n_covariates))
-    Y = X + np.random.normal(loc = 0, scale = 0.5, size = (n_obs, 1))
+    Y = np.sum(X, axis = 1) + np.random.normal(loc = 0, scale = 0.5, size = n_obs)
     
     if test_proportion == 0:
         return X, Y
