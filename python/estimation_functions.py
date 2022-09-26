@@ -5,15 +5,17 @@
 #   Implement bayes 
 #   Calc p-value 
 import numpy as np
+import matplotlib.pyplot as plt 
 
 class linear_regression():
 
-    def __init__(self, X: np.array, y: np.array) -> None:
+    def __init__(self, X: np.array, y: np.array, verbose: bool = True) -> None:
         """
         Initialise a regression model class by passing train and test data.
 
         param X : set of covariates
         param y : response variable corresponding with X 
+        param verbose : whether to report progress
         """
 
         if len(X) != len(y):
@@ -30,6 +32,7 @@ class linear_regression():
         self.weight = np.zeros(len(X[0]))
         self.bias = 0 
         self.error_history = [] 
+        self.verbose = verbose
 
 
     def predict(self, X: np.array) -> np.array:
@@ -40,10 +43,7 @@ class linear_regression():
 
         return : array of predicted responses 
         """
-        if not self.trained:
-            raise ValueError("Predict can't run until parameters have been estimated.")
-
-        return np.dot(X, self.weight) + self.bias
+        return (X * self.weight) + self.bias
 
 
     def fit_OLS(self, metric: str, closed_form: bool, max_iter: int = 100, lr: float = 0.01) -> None:
@@ -67,9 +67,21 @@ class linear_regression():
         else:
             self.epochs = max_iter
             self.lr = lr
-            for _ in self.epochs:
+            for iter in range(self.epochs):
+
+                # Perform gradient descent 
                 y_pred = self.predict(X = self.X)
                 self.__gradientDescent(y_pred = y_pred)
+                
+                # Record error 
+                err = self.calc_error(Y_pred = y_pred)
+                self.error_history.append(err)
+                if self.verbose:
+                    print("> epoch=",iter,"; error=",format(err, '.4f'))
+                
+                # Check for convergence 
+                if self.lr == 1000:
+                    break 
 
         self.__update_post_train(method = "OLS") 
         self.__print_final_err()
@@ -98,7 +110,7 @@ class linear_regression():
         else:
             self.epochs = max_iter
             self.lr = lr
-            for _ in self.epochs:
+            for _ in range(self.epochs):
                 y_pred = self.predict(X = self.X)
                 self.__gradientDescent(y_pred = y_pred)
 
@@ -120,7 +132,6 @@ class linear_regression():
         Maximum Likelihood Parameter Estimation using the Expectation-Maximisation algorithm
         """
 
-
         self.__update_post_train(method = "MLE")
         self.__print_final_err()
 
@@ -133,20 +144,19 @@ class linear_regression():
         param metric : method for evaluating error 
         """
         # Calculate cost function 
-        cost = self.__calc_error_deriv(Y_pred = y_pred)
-        self.error_history.append(cost)
+        cost_W, cost_B = self.__calc_error_deriv(Y_pred = y_pred)
 
         # Find Weight & Bias Gradients 
-        if self.alpha is None:
-            step_size = self.lr * cost
-            step_size = self.lr * cost
+        if hasattr(self, 'alpha'):
+            step_size_W = self.lr * cost_W + self.alpha 
+            step_size_B = self.lr * cost_B + self.alpha 
         else:
-            step_size = self.lr * cost + self.alpha 
-            step_size = self.lr * cost + self.alpha 
+            step_size_W = self.lr * cost_W
+            step_size_B = self.lr * cost_B
 
         # Update Weight 
-        self.weight = self.weight - step_size
-        self.bias = self.bias - step_size
+        self.weight = self.weight - step_size_W
+        self.bias = self.bias - step_size_B
 
 
     def __fitOLS_CF(self) -> None:
@@ -218,13 +228,19 @@ class linear_regression():
         return err : calculated error
         """
         if self.metric == "mse":
-            return 0
+            cost_W = (-2 * np.sum((self.y - Y_pred) * self.X)) / len(Y_pred)
+            cost_B = (-2 * np.sum(self.y - Y_pred)) / len(Y_pred)
         elif self.metric == "rmse":
-            return 0
+            cost_W = 0 
+            cost_B = 0 
         elif self.metric == "r2":
-            return 0
+            cost_W = 0 
+            cost_B = 0 
         elif self.metric == "mae":
-            return 0
+            cost_W = 0 
+            cost_B = 0 
+
+        return cost_W, cost_B
 
 
     def __update_post_train(self, method: str) -> None:
@@ -271,3 +287,25 @@ class linear_regression():
         print("Parameter estimation complete.")
         print("Train data (X) error (", self.metric, "): ", err)
 
+
+    def plot_error(self) -> None:
+        """
+        Plot the error over each iteration 
+        """
+        plt.plot(range(len(self.error_history)), self.error_history, '-')
+        plt.title(label = self.method + " Solution - Epochs")
+        plt.xlabel("Epochs")
+        plt.ylabel("Error")
+        plt.show() 
+
+    def plot_fit(self) -> None:
+        """
+        Plot the training data fit 
+        """
+        Y_pred = self.predict(X = self.X)
+        plt.scatter(self.X, self.y)
+        plt.plot(self.X, Y_pred, '-')
+        plt.title(label = self.method + " Solution Fit")
+        plt.show() 
+
+    
