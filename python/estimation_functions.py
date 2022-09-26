@@ -1,82 +1,273 @@
-
+# To Do
+#   Calculate derivatives of error functions & add derivative functions to __gradientDescent
+#   Test OLS & Ridge
+#   Implement MLE
+#   Implement bayes 
+#   Calc p-value 
 import numpy as np
-import random 
 
-def generate_linear_data(n_obs: int, n_covariates: int, test_proportion: float = 0):
-    """
-    Generate random dataset with a linear relation.
+class linear_regression():
 
-    param n_obs : number of observations
-    param n_covariates : number of covariates in data
-    param test_proportion : proportion of data for test dataset
+    def __init__(self, X: np.array, y: np.array) -> None:
+        """
+        Initialise a regression model class by passing train and test data.
 
-    return X : multi-dimensional array of covariates
-    return Y : one dimensional array of target variable
-    """
+        param X : set of covariates
+        param y : response variable corresponding with X 
+        """
 
-    generator = np.random.mtrand._rand
-    X = generator.standard_normal(size = (n_obs, n_covariates))
-    Y = np.sum(np.dot(X, np.random.normal()), axis = 1) + np.random.normal()
+        if len(X) != len(y):
+            raise ValueError("Length of X and Y do not match.")
 
-    if test_proportion == 0:
-        return X, Y
+        if np.count_nonzero(np.isnan(y)) > 0:
+            raise ValueError("Missing values found in Y.")
 
-    else:
-        
-        test_index = random.sample(population = list(range(len(X))), k = int(n_obs * test_proportion))
-        test_mask = np.ones(len(X), dtype = bool)
-        test_mask[test_index] = False
+        if np.count_nonzero(np.isnan(X)) > 0:
+            raise ValueError("Missing values found in X.")
 
-        X_Train = X[test_mask]
-        Y_Train = Y[test_mask]
-        X_Test = X[test_index]
-        Y_Test = Y[test_index]
-
-        return X_Train, Y_Train, X_Test, Y_Test
+        self.X = X
+        self.y = y
+        self.weight = np.zeros(len(X[0]))
+        self.bias = 0 
+        self.error_history = [] 
 
 
-def train(X: np.array, y: np.array, method: str):
-    """
-    Train a regression model based on specified parameter estimation method.
+    def predict(self, X: np.array) -> np.array:
+        """
+        Predict response based on current weights and bias
 
-    param X : set of covariates
-    param y : response variable corresponding with X 
-    param method : method of parameter estimation 
+        param X : covariates for prediction 
 
-    return 
-    """
+        return : array of predicted responses 
+        """
+        if not self.trained:
+            raise ValueError("Predict can't run until parameters have been estimated.")
 
-    # Error Checks 
-    valid_methods = ["OLS", "BAYES", "MLE", "RIDGE"]
-    if method not in valid_methods:
-        raise ValueError("Invalid method. Try: 'OLS', 'BAYES', 'MLE', 'RIDGE'")
-
-    if len(X) != len(y):
-        raise ValueError("Length of X and Y do not match.")
-
-    # Call Estimation Method 
-    if method == "OLS":
-        params = fn_OLS(X = X, y = y)
-    elif method == "BAYES":
-        params = fn_BAYES(X = X, y = y)
-    elif method == "MLE":
-        params = fn_MLE(X = X, y = y)
-    elif method == "RIDGE":
-        params = fn_RIDGE(X = X, y = y)
-
-    # Return 
-    return params
+        return np.dot(X, self.weight) + self.bias
 
 
+    def fit_OLS(self, metric: str, closed_form: bool, max_iter: int = 100, lr: float = 0.01) -> None:
+        """
+        Ordinary Least Square parameter estimation.
+        Use defined metric with gradient descent unless only one covariate then use closed form solution.
+        Due to computation of inverse a high dimensional feature closed form is only used with one covariate.
 
-def predict(model, newdata: np.array) -> np.array:
-    """
-    Make predictions based on the trained linear regression model and new data.
+        param metric : cost function  
+        param closed_form : boolean on whether to use closed form solution
+        param max_iter : number of iterations for gradient descent 
+        param lr : learning rate  
+        """
+        self.metric = metric
 
-    param model : output of ()
-    param newdata : covariates for prediction 
+        if self.metric not in ["rmse", "mse", "r2", "mae"]:
+            raise ValueError("Invalid metric. Please try one of: 'rmse', 'mse', 'r2' or 'mae'.")
 
-    return pred : one dimensional array of predictions 
-    """
-    pass
+        if closed_form:
+            self.__fitOLS_CF()
+        else:
+            self.epochs = max_iter
+            self.lr = lr
+            for _ in self.epochs:
+                y_pred = self.predict(X = self.X)
+                self.__gradientDescent(y_pred = y_pred)
+
+        self.__update_post_train(method = "OLS") 
+        self.__print_final_err()
+
+
+    def fit_Ridge(self, metric: str, closed_form: bool, max_iter: int = 100, lr: float = 0.01, L2: float = 0.1) -> None:
+        """
+        Ridge Regression parameter estimation.
+        Use defined metric with gradient descent unless only one covariate then use closed form solution.
+        Due to computation of inverse a high dimensional feature closed form is only used with one covariate.
+
+        param metric : cost function  
+        param closed_form : boolean on whether to use closed form solution 
+        """
+        self.metric = metric
+        self.alpha = L2
+
+        if self.metric not in ["rmse", "mse", "r2", "mae"]:
+            raise ValueError("Invalid metric. Please try one of: 'rmse', 'mse', 'r2' or 'mae'.")
+
+        if self.alpha < 0 or self.alpha > 1:
+            raise ValueError("L2 parameter is out of bounds. Value must be within range of 0-1.")
+
+        if closed_form:
+            self.__fitRIDGE_CF()
+        else:
+            self.epochs = max_iter
+            self.lr = lr
+            for _ in self.epochs:
+                y_pred = self.predict(X = self.X)
+                self.__gradientDescent(y_pred = y_pred)
+
+        self.__update_post_train(method = "Ridge")
+        self.__print_final_err()
+
+
+    
+    def fit_Bayes(self) -> None:
+        """
+        Bayesian Linear Regression implementation 
+        """
+        self.__update_post_train(method = "Bayes")
+        self.__print_final_err()
+
+
+    def fit_MLE(self) -> None:
+        """
+        Maximum Likelihood Parameter Estimation using the Expectation-Maximisation algorithm
+        """
+
+
+        self.__update_post_train(method = "MLE")
+        self.__print_final_err()
+
+
+    def __gradientDescent(self, y_pred: np.array) -> None:
+        """
+        Perform gradient descent on specified metric.
+
+        param y_pred : predicted values
+        param metric : method for evaluating error 
+        """
+        # Calculate cost function 
+        cost = self.__calc_error_deriv(Y_pred = y_pred)
+        self.error_history.append(cost)
+
+        # Find Weight & Bias Gradients 
+        if self.alpha is None:
+            step_size = self.lr * cost
+            step_size = self.lr * cost
+        else:
+            step_size = self.lr * cost + self.alpha 
+            step_size = self.lr * cost + self.alpha 
+
+        # Update Weight 
+        self.weight = self.weight - step_size
+        self.bias = self.bias - step_size
+
+
+    def __fitOLS_CF(self) -> None:
+        """
+        Ordinary Least Square parameter estimation through the closed form solution
+        """
+        # Add column for bias estimation 
+        intercept_array = np.ones((len(self.X), 1))
+        X_Train_CF = np.concatenate([intercept_array, self.X], axis = 1)
+
+        # Run closed form solution 
+        inv_X = np.linalg.inv(np.matmul(np.transpose(X_Train_CF), X_Train_CF))
+        transformed_X = np.matmul(inv_X, np.transpose(X_Train_CF))
+        betas = np.matmul(transformed_X, self.y)
+
+        # Update Weight & Biases 
+        self.weight = betas[1:]
+        self.bias = betas[0]
+
+
+    def __fitRIDGE_CF(self) -> None:
+        """
+        Ridge parameter estimation through the closed form solution
+
+        param alpha : z
+        """
+        # Add column for bias estimation 
+        intercept_array = np.ones((len(self.X), 1))
+        X_Train_CF = np.concatenate([intercept_array, self.X], axis = 1)
+
+        # Run closed form solution 
+        identity_mat = np.identity(X_Train_CF.shape[1])
+        inv_X = np.linalg.inv(np.matmul(np.transpose(X_Train_CF), X_Train_CF) + (self.alpha * identity_mat))        
+        betas = np.matmul(np.matmul(inv_X, np.transpose(X_Train_CF)), self.y)
+
+        # Update Weight & Biases 
+        self.weight = betas[1:]
+        self.bias = betas[0]
+
+
+    def calc_error(self, Y_pred: np.array, Y_true: np.array = None) -> float:
+        """
+        Calculate error between predicted and true value by some measure.
+
+        param Y_pred : predicted values
+        param Y_true : true values 
+
+        return err : calculated error
+        """
+        if Y_true is None:
+            Y_true = self.y
+
+        if self.metric == "mse":
+            return (1/len(Y_pred)) * np.sum((Y_pred - Y_true)**2)
+        elif self.metric == "rmse":
+            return np.sqrt((1/len(Y_pred)) * np.sum((Y_pred - Y_true)**2))
+        elif self.metric == "r2":
+            return (1 - (np.sum(Y_true - Y_pred)**2 / np.sum(Y_pred)**2))
+        elif self.metric == "mae":
+            return (1/len(Y_pred)) * np.sum(abs(Y_pred - Y_true))
+
+
+    def __calc_error_deriv(self, Y_pred: np.array) -> float:
+        """
+        Calculate the derivavtive of the error function between predicted and true value by some measure.
+
+        param Y_pred : predicted values
+
+        return err : calculated error
+        """
+        if self.metric == "mse":
+            return 0
+        elif self.metric == "rmse":
+            return 0
+        elif self.metric == "r2":
+            return 0
+        elif self.metric == "mae":
+            return 0
+
+
+    def __update_post_train(self, method: str) -> None:
+        """
+        Update Internals and Calculate Stats
+
+        param method : parameter estimation method 
+        """
+        self.trained = True
+        self.method = method
+        self.__calc_std_err()
+        self.__run_t_test()
+        self.__calc_p_value()
+
+    
+    def __calc_std_err(self) -> None:
+        """
+        Calculate coefficient standard errors 
+        """
+        self.se = np.std(a = self.X, axis = 0) / np.sqrt(len(self.X))
+
+
+    def __run_t_test(self) -> None:
+        """
+        Run T-Test on coefficients 
+        """
+        self.t_test =  self.weight / self.se
+
+
+    def __calc_p_value(self) -> None:
+        """
+        Calculate coefficient p-values
+        """
+        self.p_value =  self.t_test
+
+
+    def __print_final_err(self) -> None:
+        """
+        Print to console the prediction error 
+        """
+        Y_pred = self.predict(X = self.X)
+        err = self.calc_error(Y_pred = Y_pred)
+
+        print("Parameter estimation complete.")
+        print("Train data (X) error (", self.metric, "): ", err)
 
