@@ -4,6 +4,7 @@
 #   Implement MLE
 #   Implement bayes 
 #   Calc p-value 
+#   complete plotting functions for multi-dimensional data 
 import numpy as np
 import matplotlib.pyplot as plt 
 
@@ -17,7 +18,6 @@ class linear_regression():
         param y : response variable corresponding with X 
         param verbose : whether to report progress
         """
-
         if len(X) != len(y):
             raise ValueError("Length of X and Y do not match.")
 
@@ -29,10 +29,13 @@ class linear_regression():
 
         self.X = X
         self.y = y
+        self.y_hat = np.zeros(len(self.y))
         self.weight = np.zeros(len(X[0]))
         self.bias = 0 
         self.error_history = [] 
         self.verbose = verbose
+        self.closed_form = False
+        self.precision_value = 0.0001
 
 
     def predict(self, X: np.array) -> np.array:
@@ -43,7 +46,7 @@ class linear_regression():
 
         return : array of predicted responses 
         """
-        return (X * self.weight) + self.bias
+        return np.sum(X * self.weight, axis = 1) + self.bias
 
 
     def fit_OLS(self, metric: str, closed_form: bool, max_iter: int = 100, lr: float = 0.01) -> None:
@@ -110,13 +113,28 @@ class linear_regression():
         else:
             self.epochs = max_iter
             self.lr = lr
-            for _ in range(self.epochs):
+            for iter in range(self.epochs):
+                
+                # Perform gradient descent 
                 y_pred = self.predict(X = self.X)
                 self.__gradientDescent(y_pred = y_pred)
+                
+                # Record error 
+                err = self.calc_error(Y_pred = y_pred)
+                self.error_history.append(err)
+                if self.verbose:
+                    print("> epoch=",iter,"; error=",format(err, '.4f'))
+
+                # Check for convergence 
+                if iter == 1: 
+                    past_err = err
+                else:
+                    chng_cost = err - past_err
+                    past_err = err
+                    if self.precision_value > chng_cost: break 
 
         self.__update_post_train(method = "Ridge")
         self.__print_final_err()
-
 
     
     def fit_Bayes(self) -> None:
@@ -148,8 +166,8 @@ class linear_regression():
 
         # Find Weight & Bias Gradients 
         if hasattr(self, 'alpha'):
-            step_size_W = self.lr * cost_W + self.alpha 
-            step_size_B = self.lr * cost_B + self.alpha 
+            step_size_W = self.lr * (cost_W + self.alpha)
+            step_size_B = self.lr * (cost_B + self.alpha)
         else:
             step_size_W = self.lr * cost_W
             step_size_B = self.lr * cost_B
@@ -163,6 +181,8 @@ class linear_regression():
         """
         Ordinary Least Square parameter estimation through the closed form solution
         """
+        self.closed_form = True
+
         # Add column for bias estimation 
         intercept_array = np.ones((len(self.X), 1))
         X_Train_CF = np.concatenate([intercept_array, self.X], axis = 1)
@@ -181,8 +201,10 @@ class linear_regression():
         """
         Ridge parameter estimation through the closed form solution
 
-        param alpha : z
+        param alpha : L2 regularisation parameter
         """
+        self.closed_form = True
+
         # Add column for bias estimation 
         intercept_array = np.ones((len(self.X), 1))
         X_Train_CF = np.concatenate([intercept_array, self.X], axis = 1)
@@ -225,10 +247,11 @@ class linear_regression():
 
         param Y_pred : predicted values
 
-        return err : calculated error
+        return cost_W : derivative of error function with respect to W
+        return cost_B : derivative of error function with respect to B
         """
         if self.metric == "mse":
-            cost_W = (-2 * np.sum((self.y - Y_pred) * self.X)) / len(Y_pred)
+            cost_W = (-2 * np.sum(np.dot((self.y - Y_pred), self.X))) / len(Y_pred)
             cost_B = (-2 * np.sum(self.y - Y_pred)) / len(Y_pred)
         elif self.metric == "rmse":
             cost_W = 0 
@@ -251,6 +274,7 @@ class linear_regression():
         """
         self.trained = True
         self.method = method
+        self.y_hat= self.predict(X = self.X)
         self.__calc_std_err()
         self.__run_t_test()
         self.__calc_p_value()
@@ -292,20 +316,40 @@ class linear_regression():
         """
         Plot the error over each iteration 
         """
+        if self.closed_form is True:
+            raise ValueError("Can't plot error for closed form solution.")
+
         plt.plot(range(len(self.error_history)), self.error_history, '-')
         plt.title(label = self.method + " Solution - Epochs")
         plt.xlabel("Epochs")
         plt.ylabel("Error")
         plt.show() 
 
-    def plot_fit(self) -> None:
+
+    def plot_fit(self, x_index: int = 0) -> None:
         """
         Plot the training data fit 
+
+        param x_index : which covariate to plot 
         """
-        Y_pred = self.predict(X = self.X)
-        plt.scatter(self.X, self.y)
-        plt.plot(self.X, Y_pred, '-')
+        if len(self.X[0]) == 1: x_index = 0
+
+        plt.scatter(self.X[:, x_index], self.y)
+        plt.plot(self.X[:, x_index], self.y_hat, '-', col = "red")
         plt.title(label = self.method + " Solution Fit")
         plt.show() 
 
+
+    def plot_residual_dist(self, true: np.array, pred: np.array) -> None:
+        """
+        Plot the distribution of residuals
+
+        param true : true y values
+        param pred : predicted y values
+        """
+        residuals = true - pred
+
+        plt.hist(residuals, bins = 20)
+        plt.title(label = self.method + " Residual Distribution")
+        plt.show()
     
