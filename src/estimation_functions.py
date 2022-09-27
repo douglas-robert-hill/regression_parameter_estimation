@@ -21,9 +21,12 @@ class linear_regression():
         if len(X) != len(y):
             raise ValueError("Length of X and Y do not match.")
 
+        if len(y[0]) != 1:
+            raise ValueError("Y is not a One-Dimensional vector.")
+
         if np.count_nonzero(np.isnan(y)) > 0:
             raise ValueError("Missing values found in Y.")
-
+            
         if np.count_nonzero(np.isnan(X)) > 0:
             raise ValueError("Missing values found in X.")
 
