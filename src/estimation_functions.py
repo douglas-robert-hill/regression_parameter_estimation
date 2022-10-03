@@ -35,7 +35,7 @@ class regression_estimator():
         self.error_history = [] 
         self.verbose = verbose
         self.closed_form = False
-        self.precision_value = 0.0001
+        self.precision_value = 0.000001
 
 
     def predict(self, X: np.array) -> np.array:
@@ -87,8 +87,14 @@ class regression_estimator():
                     print("> epoch=",iter,"; error=",format(err, '.4f'))
                 
                 # Check for convergence 
-                if self.lr == 1000:
-                    break 
+                if iter == 0: 
+                    past_err = err
+                else:
+                    chng_cost = err - past_err
+                    past_err = err
+                    if self.precision_value > chng_cost:
+                        print("Reached solution convergence")
+                        break 
 
         self.__update_post_train()
         self.__print_final_err()
@@ -131,12 +137,14 @@ class regression_estimator():
                     print("> epoch=",iter,"; error=",format(err, '.4f'))
 
                 # Check for convergence 
-                if iter == 1: 
+                if iter == 0: 
                     past_err = err
                 else:
                     chng_cost = err - past_err
                     past_err = err
-                    if self.precision_value > chng_cost: break 
+                    if self.precision_value > chng_cost: 
+                        print("Reached solution convergence")
+                        break 
 
         self.__update_post_train()
         self.__print_final_err()
@@ -189,8 +197,14 @@ class regression_estimator():
                 print("> epoch=",iter,"; error=",format(err, '.4f'))
             
             # Check for convergence 
-            if self.lr == 1000:
-                break 
+            if iter == 0: 
+                past_err = err
+            else:
+                chng_cost = err - past_err
+                past_err = err
+                if self.precision_value > chng_cost: 
+                    print("Reached solution convergence")
+                    break 
 
         self.__update_post_train()
         self.__print_final_err()
