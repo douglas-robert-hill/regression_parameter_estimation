@@ -46,7 +46,7 @@ class regression_estimator():
 
         return : array of predicted responses 
         """
-        if type == "LOGISTIC":
+        if self.method == "LOGISTIC":
            return self.__sigmoid(arr = (np.sum(X * self.weight, axis = 1) + self.bias))
         else:
             return np.sum(X * self.weight, axis = 1) + self.bias
@@ -171,8 +171,8 @@ class regression_estimator():
         self.method = "LOGISTIC"
         self.metric = metric
 
-        if self.metric not in ["rmse", "mse", "r2", "mae"]:
-            raise ValueError("Invalid metric. Please try one of: 'rmse', 'mse', 'r2' or 'mae'.")
+        if self.metric not in ["bce"]:
+            raise ValueError("Invalid metric. Please try one of: 'bce'.")
 
         self.epochs = max_iter
         self.lr = lr
@@ -180,7 +180,6 @@ class regression_estimator():
 
             # Perform gradient descent 
             y_pred = self.predict(X = self.X)
-            y_pred = self.__sigmoid(arr = y_pred)
             self.__gradientDescent(y_pred = y_pred)
             
             # Record error 
@@ -282,6 +281,8 @@ class regression_estimator():
             return (1 - (np.sum(Y_true - Y_pred)**2 / np.sum(Y_pred)**2))
         elif self.metric == "mae":
             return (1/len(Y_pred)) * np.sum(abs(Y_pred - Y_true))
+        elif self.metric == "bce":
+            return -np.mean(((1 - Y_true) * np.log(1 - Y_pred + 1e-7)) + (Y_true * (np.log(Y_pred + 1e-7))))
 
 
     def __calc_error_deriv(self, Y_pred: np.array) -> float:
@@ -305,6 +306,9 @@ class regression_estimator():
         elif self.metric == "mae":
             cost_W = 0 
             cost_B = 0 
+        elif self.metric == "bce":
+            cost_W = np.mean(np.matmul(self.X.transpose(), Y_pred - self.y))
+            cost_B = np.mean(Y_pred - self.y)
 
         return cost_W, cost_B
 
@@ -319,14 +323,22 @@ class regression_estimator():
         self.__run_t_test()
         self.__calc_p_value()
 
+
+    def __sigmoid(self, arr) -> np.array:
+        """
+        Sigmoid function to call to iterate positive and negatives 
+        """
+        return np.array([self.__sigmoid_func(value) for value in arr])
+
     
-    def __sigmoid(self, arr: np.array) -> np.array:
+    def __sigmoid_func(self, x: np.array) -> np.array:
         """
         Sigmoid function
-
-        param arr : array to be passed to func 
         """
-        return 1/(1+ np.exp(-arr))
+        if x >= 0:
+            return 1 / (1 + np.exp(-x))
+        else:
+            return np.exp(x) / (1 + np.exp(x))
 
     
     def __calc_std_err(self) -> None:
@@ -383,8 +395,11 @@ class regression_estimator():
         """
         if len(self.X[0]) == 1: x_index = 0
 
+        X_plot = np.linspace(np.min(self.X), np.max(self.X), 1000).reshape(1000,1)
+        Y_plot = self.predict(X = X_plot)
+
         plt.scatter(self.X[:, x_index], self.y)
-        plt.plot(self.X[:, x_index], self.y_hat, '-', col = "red")
+        plt.plot(X_plot, Y_plot, '-', color = "red")
         plt.title(label = self.method + " Solution Fit")
         plt.show() 
 
@@ -401,4 +416,4 @@ class regression_estimator():
         plt.hist(residuals, bins = 20)
         plt.title(label = self.method + " Residual Distribution")
         plt.show()
-    
+
