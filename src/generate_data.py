@@ -2,13 +2,14 @@
 import numpy as np
 import random 
 
-def generate_linear_data(n_obs: int, n_covariates: int, test_proportion: float = 0):
+def generate_linear_data(n_obs: int, n_covariates: int, test_proportion: float = 0, logistic: bool = True) -> np.array:
     """
     Generate random dataset with a linear relation.
 
     param n_obs : number of observations
     param n_covariates : number of covariates in data
     param test_proportion : proportion of data for test dataset
+    param logistic : whether data should be passed through sigmoid function 
 
     return X : multi-dimensional array of covariates
     return Y : one dimensional array of target variable
@@ -17,6 +18,9 @@ def generate_linear_data(n_obs: int, n_covariates: int, test_proportion: float =
     X = generator.standard_normal(size = (n_obs, n_covariates))
     Y = np.sum(X, axis = 1) + np.random.normal(loc = 0, scale = 0.5, size = n_obs)
     
+    if logistic:
+        Y = 1 / (1+ np.exp(-Y))
+
     if test_proportion == 0:
         return X, Y
 

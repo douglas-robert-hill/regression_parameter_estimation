@@ -8,7 +8,7 @@
 import numpy as np
 import matplotlib.pyplot as plt 
 
-class linear_regression():
+class regression_estimator():
 
     def __init__(self, X: np.array, y: np.array, verbose: bool = True) -> None:
         """
@@ -21,9 +21,6 @@ class linear_regression():
         if len(X) != len(y):
             raise ValueError("Length of X and Y do not match.")
 
-        if len(y[0]) != 1:
-            raise ValueError("Y is not a One-Dimensional vector.")
-
         if np.count_nonzero(np.isnan(y)) > 0:
             raise ValueError("Missing values found in Y.")
             
@@ -33,7 +30,7 @@ class linear_regression():
         self.X = X
         self.y = y
         self.y_hat = np.zeros(len(self.y))
-        self.weight = np.zeros(len(X[0]))
+        self.weight = np.zeros(len(self.X[0]))
         self.bias = 0 
         self.error_history = [] 
         self.verbose = verbose
@@ -49,7 +46,10 @@ class linear_regression():
 
         return : array of predicted responses 
         """
-        return np.sum(X * self.weight, axis = 1) + self.bias
+        if type == "LOGISTIC":
+           return self.__sigmoid(arr = (np.sum(X * self.weight, axis = 1) + self.bias))
+        else:
+            return np.sum(X * self.weight, axis = 1) + self.bias
 
 
     def fit_OLS(self, metric: str, closed_form: bool, max_iter: int = 100, lr: float = 0.01) -> None:
@@ -63,6 +63,7 @@ class linear_regression():
         param max_iter : number of iterations for gradient descent 
         param lr : learning rate  
         """
+        self.method = "OLS"
         self.metric = metric
 
         if self.metric not in ["rmse", "mse", "r2", "mae"]:
@@ -89,7 +90,7 @@ class linear_regression():
                 if self.lr == 1000:
                     break 
 
-        self.__update_post_train(method = "OLS") 
+        self.__update_post_train()
         self.__print_final_err()
 
 
@@ -102,6 +103,7 @@ class linear_regression():
         param metric : cost function  
         param closed_form : boolean on whether to use closed form solution 
         """
+        self.method = "RIDGE"
         self.metric = metric
         self.alpha = L2
 
@@ -136,7 +138,7 @@ class linear_regression():
                     past_err = err
                     if self.precision_value > chng_cost: break 
 
-        self.__update_post_train(method = "Ridge")
+        self.__update_post_train()
         self.__print_final_err()
 
     
@@ -144,7 +146,8 @@ class linear_regression():
         """
         Bayesian Linear Regression implementation 
         """
-        self.__update_post_train(method = "Bayes")
+        self.method = "Bayes"
+        self.__update_post_train()
         self.__print_final_err()
 
 
@@ -152,8 +155,45 @@ class linear_regression():
         """
         Maximum Likelihood Parameter Estimation using the Expectation-Maximisation algorithm
         """
+        self.method = "MLE"
+        self.__update_post_train()
+        self.__print_final_err()
 
-        self.__update_post_train(method = "MLE")
+    
+    def fit_Logistic(self, metric: str, max_iter: int = 100, lr: float = 0.01) -> None:
+        """
+        Logistic Regression Estimation using OLS 
+
+        param metric : cost function  
+        param max_iter : number of iterations for gradient descent 
+        param lr : learning rate  
+        """
+        self.method = "LOGISTIC"
+        self.metric = metric
+
+        if self.metric not in ["rmse", "mse", "r2", "mae"]:
+            raise ValueError("Invalid metric. Please try one of: 'rmse', 'mse', 'r2' or 'mae'.")
+
+        self.epochs = max_iter
+        self.lr = lr
+        for iter in range(self.epochs):
+
+            # Perform gradient descent 
+            y_pred = self.predict(X = self.X)
+            y_pred = self.__sigmoid(arr = y_pred)
+            self.__gradientDescent(y_pred = y_pred)
+            
+            # Record error 
+            err = self.calc_error(Y_pred = y_pred)
+            self.error_history.append(err)
+            if self.verbose:
+                print("> epoch=",iter,"; error=",format(err, '.4f'))
+            
+            # Check for convergence 
+            if self.lr == 1000:
+                break 
+
+        self.__update_post_train()
         self.__print_final_err()
 
 
@@ -269,18 +309,24 @@ class linear_regression():
         return cost_W, cost_B
 
 
-    def __update_post_train(self, method: str) -> None:
+    def __update_post_train(self) -> None:
         """
         Update Internals and Calculate Stats
-
-        param method : parameter estimation method 
         """
         self.trained = True
-        self.method = method
         self.y_hat= self.predict(X = self.X)
         self.__calc_std_err()
         self.__run_t_test()
         self.__calc_p_value()
+
+    
+    def __sigmoid(self, arr: np.array) -> np.array:
+        """
+        Sigmoid function
+
+        param arr : array to be passed to func 
+        """
+        return 1/(1+ np.exp(-arr))
 
     
     def __calc_std_err(self) -> None:
